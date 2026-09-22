@@ -1,0 +1,4 @@
+<resources>
+    <string name="stereo">Stereo übertragen</string>
+    <string name="gain">Pegel: %1$d %%</string>
+</resources>

@@ -1,0 +1,50 @@
+.tools/
+artifacts/
+# Local packaged Windows output; rebuilt under artifacts/.
+/ToasterMic-Windows-x64/
+/ToasterMic-Windows-x64.zip
+
+# Build and IDE state
+**/bin/
+**/obj/
+**/build/
+**/.gradle/
+**/local.properties
+.idea/
+.vs/
+.vscode/
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Per-machine signing material and generated packages
+*.user
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.apk
+*.aab
+*.msix
+*.appx
+*.appxbundle
+*.msixbundle
+
+# Native compiler output
+x64/
+x86/
+Win32/
+Debug/
+Release/
+ipch/
+*.obj
+*.pdb
+*.ilk
+*.pch
+*.idb
+*.tlog/
+
+# Logs and transient test output
+*.log
+*.tmp
+*.temp

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType><TargetFramework>net8.0-windows</TargetFramework><UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>ToasterMic</AssemblyName>
+    <Version>0.4.1</Version>
+  </PropertyGroup>
+  <ItemGroup><ProjectReference Include="../ToasterMic.Core/ToasterMic.Core.csproj"/><PackageReference Include="NAudio.Wasapi" Version="2.2.1"/></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="ToasterMic.Windows.Tests"/></ItemGroup>
+</Project>
