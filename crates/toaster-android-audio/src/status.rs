@@ -54,9 +54,10 @@ pub struct Status {
     pub right_peak: u16,
     pub peer: [u8; 4],
     pub packets: u32,
-    /// Process id of the writing engine (0 = unknown); lets the UI detect a
-    /// killed engine whose last status is still in the file.
+    /// Process id of the writing engine (diagnostics).
     pub pid: u32,
+    /// Milliseconds since the PC's last sign of life (HELLO), 0 without PC.
+    pub link_age_ms: u16,
     pub message: String,
 }
 
@@ -84,6 +85,7 @@ impl Status {
         }
         b[26..28].copy_from_slice(&(n as u16).to_le_bytes());
         b[28..28 + n].copy_from_slice(&msg[..n]);
+        b[SIZE - 12..SIZE - 10].copy_from_slice(&self.link_age_ms.to_le_bytes());
         b[SIZE - 8..SIZE - 4].copy_from_slice(&self.pid.to_le_bytes());
         b[SIZE - 4..].copy_from_slice(&seq.to_le_bytes());
         b
@@ -104,14 +106,9 @@ impl Status {
             peer: b[18..22].try_into().unwrap(),
             packets: u32::from_le_bytes(b[22..26].try_into().unwrap()),
             pid: u32::from_le_bytes(b[SIZE - 8..SIZE - 4].try_into().unwrap()),
+            link_age_ms: u16::from_le_bytes([b[SIZE - 12], b[SIZE - 11]]),
             message: String::from_utf8_lossy(&b[28..28 + n]).into_owned(),
         })
-    }
-
-    /// Whether the engine that wrote this status is still running.
-    #[cfg(unix)]
-    pub fn writer_alive(&self) -> bool {
-        self.pid != 0 && std::path::Path::new(&format!("/proc/{}", self.pid)).exists()
     }
 
     pub fn read(files: &Path) -> Option<Status> {
@@ -121,6 +118,37 @@ impl Status {
             }
         }
         None
+    }
+}
+
+/// Held by the running engine for its whole lifetime. The kernel releases it
+/// when the process ends, so the UI can tell a live engine from a stale
+/// status file without any polling or wake-ups in the engine.
+#[cfg(target_os = "android")]
+pub struct EngineLock(File);
+
+#[cfg(target_os = "android")]
+impl EngineLock {
+    fn path(files: &Path) -> PathBuf {
+        files.join("engine.lock")
+    }
+    pub fn acquire(files: &Path) -> Option<EngineLock> {
+        use std::os::fd::AsRawFd;
+        let f = std::fs::OpenOptions::new().create(true).read(true).write(true).truncate(false).open(Self::path(files)).ok()?;
+        // Never block the caller (JNI on the main thread).
+        (unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0).then_some(EngineLock(f))
+    }
+    /// True while some process holds the engine lock.
+    pub fn engine_running(files: &Path) -> bool {
+        use std::os::fd::AsRawFd;
+        let Ok(f) = std::fs::OpenOptions::new().read(true).open(Self::path(files)) else { return false };
+        let fd = f.as_raw_fd();
+        if unsafe { libc::flock(fd, libc::LOCK_SH | libc::LOCK_NB) } == 0 {
+            unsafe { libc::flock(fd, libc::LOCK_UN) };
+            false
+        } else {
+            true
+        }
     }
 }
 
@@ -169,7 +197,7 @@ mod tests {
 
     #[test]
     fn roundtrip_and_torn_detection() {
-        let s = Status { code: StatusCode::Streaming, channels: 3, flags: flag::STUDIO, peak: 1234, peer: [192, 168, 1, 5], packets: 99, pid: 4321, message: "Überträgt · Studio".into(), ..Default::default() };
+        let s = Status { code: StatusCode::Streaming, channels: 3, flags: flag::STUDIO, peak: 1234, peer: [192, 168, 1, 5], packets: 99, pid: 4321, link_age_ms: 250, message: "Überträgt · Studio".into(), ..Default::default() };
         let b = s.encode(7);
         assert_eq!(Status::decode(&b), Some(s.clone()));
         let mut torn = b;

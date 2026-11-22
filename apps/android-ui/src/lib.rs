@@ -30,7 +30,7 @@ mod ui {
     use toaster_android_audio::capture::{self, CaptureConfig};
     use toaster_android_audio::device::{self, BuildInfo, InputDevice};
     use toaster_android_audio::settings::Calibration;
-    use toaster_android_audio::status::{flag, Status, StatusCode};
+    use toaster_android_audio::status::{flag, EngineLock, Status, StatusCode};
     use toaster_android_audio::{Mode, PhoneSettings};
     use toaster_core::calibration::{identify, LevelMeter};
 
@@ -238,7 +238,7 @@ mod ui {
         fn refresh(&mut self) {
             if let Some(mut st) = Status::read(&self.files) {
                 // A killed engine leaves its last status behind.
-                if st.code != StatusCode::Stopped && st.code != StatusCode::Error && !st.writer_alive() {
+                if st.code != StatusCode::Stopped && st.code != StatusCode::Error && !EngineLock::engine_running(&self.files) {
                     st = Status { code: StatusCode::Stopped, ..Default::default() };
                 }
                 self.status = st;
@@ -262,12 +262,29 @@ mod ui {
                 self.ui.set_status(text.into());
             }
             self.ui.set_status_error(st.code == StatusCode::Error);
+            let peer = std::net::Ipv4Addr::from(st.peer);
+            let detail = match st.code {
+                StatusCode::Streaming if st.link_age_ms >= 1500 => {
+                    format!("PC {peer} · antwortet verzögert (letztes Signal vor {:.1} s)", st.link_age_ms as f32 / 1000.0).replace('.', ",")
+                }
+                StatusCode::Streaming => format!("PC {peer} · Verbindung aktiv"),
+                StatusCode::Ready => "Noch kein PC verbunden. Am PC die Handy-IP eintragen und verbinden.".into(),
+                StatusCode::Standby => "Mikrofon aus · der gekoppelte PC weckt es bei Bedarf.".into(),
+                _ => String::new(),
+            };
+            self.ui.set_detail(detail.into());
+            // Mute toggled from the notification: keep the app setting in sync.
+            if running {
+                let engine_muted = st.flags & flag::MUTED != 0;
+                if engine_muted != self.settings.muted {
+                    self.settings.muted = engine_muted;
+                    let _ = self.settings.save(&self.files);
+                }
+            }
             self.ui.set_meter(st.peak as f32 / 32768.0);
             self.ui.set_left_meter(st.left_peak as f32 / 32768.0);
             self.ui.set_right_meter(st.right_peak as f32 / 32768.0);
-            if st.code != StatusCode::Stopped || self.tick == 0 {
-                self.ui.set_muted(if running { st.flags & flag::MUTED != 0 } else { self.settings.muted });
-            }
+            self.ui.set_muted(self.settings.muted);
             if self.tick % 8 == 0 {
                 let ips = device::local_ipv4();
                 self.ui.set_ip(if ips.is_empty() { "Keine lokale IPv4 · WLAN verbinden".into() } else { ips.join("\n").into() });

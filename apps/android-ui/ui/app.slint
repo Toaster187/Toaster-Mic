@@ -58,6 +58,7 @@ export component AppWindow inherits Window {
 
     // Main
     in property <string> status: "Bereit";
+    in property <string> detail;
     in property <bool> status-error;
     in property <string> ip: "–";
     in property <float> meter;
@@ -129,6 +130,7 @@ export component AppWindow inherits Window {
                     padding: 16px;
                     spacing: 6px;
                     Text { text: root.status; font-size: 18px; font-weight: 600; color: root.status-error ? Theme.error : Theme.accent; wrap: word-wrap; }
+                    if root.detail != "": Label { text: root.detail; font-size: 13px; }
                     Label { text: "Handy-IP"; }
                     Text { text: root.ip; font-size: 24px; color: Theme.text; wrap: word-wrap; }
                 }
@@ -166,12 +168,18 @@ export component AppWindow inherits Window {
             if root.hint != "": Label { text: root.hint; font-size: 13px; color: Theme.accent; }
             Rectangle { vertical-stretch: 1; min-height: 8px; }
             HorizontalLayout {
-                spacing: 10px;
-                Button { text: root.muted ? "Ton an" : "Stumm"; clicked => { root.toggle-mute(); } }
+                spacing: 12px;
+                height: 64px;
+                Button {
+                    text: root.muted ? "Ton an" : "Stumm";
+                    horizontal-stretch: 2;
+                    checkable: false;
+                    clicked => { root.toggle-mute(); }
+                }
                 Button {
                     text: root.running ? "Stoppen" : "Mikrofon starten";
                     primary: true;
-                    horizontal-stretch: 1;
+                    horizontal-stretch: 3;
                     clicked => { root.start-stop(); }
                 }
             }

@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use toaster_android_audio::capture::{self, Capture, CaptureConfig};
 use toaster_android_audio::device::{self, BuildInfo, InputDevice};
-use toaster_android_audio::status::{flag, Status, StatusCode, StatusWriter};
+use toaster_android_audio::status::{flag, EngineLock, Status, StatusCode, StatusWriter};
 use toaster_android_audio::{Mode, PairingFile, PhoneSettings};
 use toaster_core::phone::{self, Event, Peer, PhoneControl, LEASE_MS};
 use toaster_core::wire::{self, flags};
@@ -274,6 +274,8 @@ struct Control {
     status: StatusWriter,
     message: String,
     code: StatusCode,
+    /// Released (by the kernel at the latest) when the engine ends.
+    _lock: Option<EngineLock>,
 }
 
 impl Control {
@@ -284,6 +286,7 @@ impl Control {
         notify: Arc<dyn Fn(i32, i32) + Send + Sync>,
         standby: bool,
     ) -> Result<Control, String> {
+        let lock = EngineLock::acquire(&setup.files);
         let pairing_file = PairingFile::load(&setup.files);
         let mut phone = PhoneControl::new(pairing_file.pairing());
         phone.standby = standby;
@@ -302,6 +305,7 @@ impl Control {
             status,
             message: String::new(),
             code: StatusCode::Starting,
+            _lock: lock,
         };
         if standby {
             c.enter_standby();
@@ -468,12 +472,12 @@ impl Control {
         if self.capture.is_some() {
             self.code = if active.is_some() { StatusCode::Streaming } else { StatusCode::Ready };
             self.message = match &active {
-                Some(p) => {
-                    let what = if muted { "Stumm".to_string() } else { self.plan_label.clone() };
+                Some(_) if muted => "Verbunden · Handy stumm".into(),
+                Some(_) => {
                     let fast = if now < self.shared.fast_until.load(Ordering::Relaxed) { " · Schnellstart" } else { "" };
-                    format!("{what}{fast} → {}", p.addr.ip())
+                    format!("Verbunden · sendet {}{fast}", self.plan_label)
                 }
-                None => "Bereit · am PC mit Handy-IP verbinden".into(),
+                None => "Bereit · wartet auf den PC".into(),
             };
         }
         self.write_status_with(active.map(|p| p.addr));
@@ -512,6 +516,7 @@ impl Control {
             },
             packets: s.packets.load(Ordering::Relaxed),
             pid: std::process::id(),
+            link_age_ms: if peer.is_some() { now_ms().saturating_sub(self.phone.last_hello()).min(u16::MAX as u64) as u16 } else { 0 },
             message: self.message.clone(),
         };
         self.status.write(&status);

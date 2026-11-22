@@ -60,7 +60,7 @@ try {
 
         # Java shell (Android-mandated classes only) -> dex
         $sources = Get-ChildItem (Join-Path $app 'java') -Recurse -Filter *.java | ForEach-Object FullName
-        & (Join-Path $env:JAVA_HOME 'bin\javac.exe') --release 11 -nowarn -classpath $androidJar -d "$obj\classes" @sources
+        & (Join-Path $env:JAVA_HOME 'bin\javac.exe') --release 11 -encoding UTF-8 -nowarn -classpath $androidJar -d "$obj\classes" @sources
         if ($LASTEXITCODE -ne 0) { throw 'javac fehlgeschlagen.' }
         $classes = Get-ChildItem "$obj\classes" -Recurse -Filter *.class | ForEach-Object FullName
         & (Join-Path $buildTools 'd8.bat') --release --min-api 28 --lib $androidJar --output "$obj\dex" @classes
