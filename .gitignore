@@ -1,4 +1,5 @@
 .tools/
+/target/
 artifacts/
 # Local packaged Windows output; rebuilt under artifacts/.
 /ToasterMic-Windows-x64/
@@ -8,6 +9,7 @@ artifacts/
 **/bin/
 **/obj/
 **/build/
+# Gradle-free Android build intermediates live in target/apk.
 **/.gradle/
 **/local.properties
 .idea/

@@ -1,0 +1,104 @@
+name: Release
+
+# Every push to main builds, tests and publishes a release, so the newest
+# main commit is always the "latest" release:
+#   https://github.com/<owner>/<repo>/releases/latest/download/ToasterMic-Setup.exe
+#   https://github.com/<owner>/<repo>/releases/latest/download/ToasterMic.apk
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  NDK_VERSION: 28.2.13676358
+  # Self-contained exe: no Visual C++ redistributable needed.
+  CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -Ctarget-feature=+crt-static
+
+jobs:
+  release:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
+
+      - name: Android NDK, build tools and platform
+        run: |
+          $sdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
+          $sdkmanager = Join-Path $sdk 'cmdline-tools\latest\bin\sdkmanager.bat'
+          cmd /c "echo y| `"$sdkmanager`" --install `"ndk;$env:NDK_VERSION`" `"build-tools;36.0.0`" `"platforms;android-36`"" | Select-Object -Last 3
+          "ANDROID_HOME=$sdk" >> $env:GITHUB_ENV
+          "ANDROID_NDK_HOME=$(Join-Path $sdk "ndk\$env:NDK_VERSION")" >> $env:GITHUB_ENV
+
+      - name: Inno Setup
+        run: |
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Tests
+        run: cargo test --workspace
+
+      - name: Release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if ($env:KEYSTORE_BASE64) {
+            $ks = Join-Path $env:RUNNER_TEMP 'toaster-release.keystore'
+            [IO.File]::WriteAllBytes($ks, [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+            "TOASTER_KEYSTORE=$ks" >> $env:GITHUB_ENV
+            "TOASTER_KEYSTORE_PASSWORD=$env:KEYSTORE_PASSWORD" >> $env:GITHUB_ENV
+            "TOASTER_KEY_ALIAS=toastermic" >> $env:GITHUB_ENV
+          } else {
+            Write-Output '::warning::Secret ANDROID_KEYSTORE_BASE64 fehlt: die APK wird mit einem temporären Schlüssel signiert und lässt sich nicht über ältere Versionen installieren.'
+          }
+
+      - name: Build Windows installer and Android APK
+        run: ./scripts/build.ps1 -BuildNumber ${{ github.run_number }} -Installer
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $base = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
+          $version = "$base.${{ github.run_number }}"
+          $tag = "v$version"
+          $subject = git log -1 --format=%s
+          $notes = @"
+          **Toaster Mic $version** – automatisch gebaut aus ``${{ github.sha }}`` ($subject).
+
+          - **Windows:** ``ToasterMic-Setup.exe`` herunterladen und ausführen (keine Administratorrechte nötig). VB-CABLE muss installiert sein.
+          - **Android:** ``ToasterMic.apk`` auf dem Handy öffnen und installieren (Installation aus unbekannten Quellen erlauben).
+          - ``ToasterMic-Windows-x64.zip`` enthält dieselbe Windows-App ohne Installer.
+
+          Anleitung: [README](https://github.com/${{ github.repository }}/blob/$tag/README.md)
+          "@
+          $notes = ($notes -split "`n" | ForEach-Object { $_ -replace '^          ', '' }) -join "`n"
+          Copy-Item artifacts/android/ToasterMic.apk artifacts/ToasterMic.apk
+          gh release create $tag `
+            artifacts/ToasterMic-Setup.exe artifacts/ToasterMic.apk artifacts/ToasterMic-Windows-x64.zip `
+            --target ${{ github.sha }} --title "Toaster Mic $version" --notes $notes --latest

@@ -1,66 +1,70 @@
-# Toaster Mic (Android 0.4.2 / Windows 0.4.1)
+# Toaster Mic 0.5 (Android + Windows, Rust)
 
-Native WLAN-Mikrofon-App für Android 9+ und Windows 10/11 x64. Android verwendet Java/AudioRecord, Windows WPF/WASAPI.
+WLAN-Mikrofon: das Handy nimmt auf, der PC spielt das Signal in VB-CABLE ab, und jedes Programm nutzt **CABLE Output** als Mikrofon. Beide Apps sind ab 0.5 in Rust geschrieben und auf geringen Akku-, CPU- und Speicherbedarf im Hintergrund ausgelegt. Android 9+, Windows 10/11 x64.
+
+## Download
+
+Jeder Stand von `main` wird automatisch gebaut, getestet und als neuester Release veröffentlicht:
+
+- **Windows-Installer:** [ToasterMic-Setup.exe](https://github.com/Toaster187/Toaster-Mic/releases/latest/download/ToasterMic-Setup.exe) (ohne Administratorrechte, Deinstallation über die Windows-Einstellungen)
+- **Android:** [ToasterMic.apk](https://github.com/Toaster187/Toaster-Mic/releases/latest/download/ToasterMic.apk)
+- Windows ohne Installer: [ToasterMic-Windows-x64.zip](https://github.com/Toaster187/Toaster-Mic/releases/latest/download/ToasterMic-Windows-x64.zip)
 
 ## Starten
 
-- Windows: `artifacts/windows/ToasterMic.exe` oder `ToasterMic-Windows-x64.zip` vollständig entpacken.
-- Android: `artifacts/android/ToasterMic-debug.apk` installieren. Bestehende Einstellungen bleiben erhalten.
+- **Windows:** Installer ausführen. VB-CABLE muss installiert sein; **CABLE Input** wird automatisch als Audioziel gewählt.
+- **Android:** APK installieren. Neuere Releases installieren sich über ältere. Eine Version 0.4 muss vorher einmal **deinstalliert** werden, weil sie mit einem anderen Schlüssel signiert ist.
 
-1. Handy und PC mit demselben erreichbaren lokalen Netz verbinden; Ethernet am PC ist möglich.
-2. Auf Android **Mikrofon starten**, Mikrofonberechtigung erteilen.
-3. In Windows die angezeigte **Handy-IP** eingeben.
-4. Unter **Einstellungen → Audioziel** **CABLE Input (VB-Audio Virtual Cable)** wählen. Ein vorhandenes CABLE Input wird automatisch vorausgewählt.
-5. **Verbinden**. In Discord, OBS oder der gewünschten Anwendung **CABLE Output** als Mikrofon wählen.
+1. Handy und PC im selben lokalen Netz.
+2. Auf dem Handy **Mikrofon starten**, Mikrofonberechtigung erteilen.
+3. Am PC die angezeigte **Handy-IP** eintragen und **Verbinden**.
+4. Im Zielprogramm (Discord, OBS, …) **CABLE Output** als Mikrofon wählen.
 
-VB-CABLE muss bereits installiert sein. Die App enthält und installiert keinen eigenen virtuellen Mikrofontreiber oder Windows-Dienst mehr. Treiber, Dienst, Zertifikate und Testmodus-Setup sind aus dem Windows-Paket entfernt. Historische Treiberquellen bleiben im Repository und gehören nicht zum aktuellen Build.
+## Modi
 
-Port 8125 ist die Vorgabe. Falls belegt, auf beiden Geräten denselben anderen Port unter Einstellungen wählen (1024–65535).
+- **Mono:** automatische Android-Eingabe (Rohsignal, wenn das Gerät es anbietet).
+- **Stereo:** zwei getrennte Mikrofone. Auf dem Pixel 9 werden die drei Rohkanäle gelesen und die zugeordneten Mikrofone oben und unten übertragen. Davor einmal **Einstellungen → Mikrofone zuordnen** (Ruhe, oben, unten, hinten je drei Sekunden). Auf anderen Geräten genügt die Zuordnung von oben und unten; externe Stereo-Eingänge brauchen keine Zuordnung.
+- **Studio:** alle eingebauten Mikrofone (Pixel 9: drei) gehen **unverarbeitet** an den PC. Erst dort werden sie zu einer lauten, klaren Stimme verrechnet, damit der Handy-Akku geschont wird. Die Kette: 80-Hz-Hochpass, Laufzeitausgleich zwischen den Mikrofonen (GCC-PHAT), Gewichtung nach Signal-Rausch-Abstand, Pegelautomatik bis +40 dB, Rauschunterdrückung (RNNoise, *Aus/Mittel/Stark* in den PC-Einstellungen), Kompressor und Limiter bei −1 dBFS. Zusätzliche Verzögerung etwa 22 ms, PC-Last etwa 6 % eines Kerns.
 
-## Bedienung
+## Live-Schalter (Nicht stören)
 
-**Android:** Die Hauptseite zeigt Status, IP, Pegel und Start/Stumm. Port, Aufnahmepegel und Akkueinstellungen liegen im Einstellungsmenü. Erst nach Aktivierung von **Stereo** erscheinen Eingabegerät und Links-/Rechts-Zuordnung. Mono verwendet die automatische Android-Eingabe. Port, Stereo und Eingabegerät können vor dem Aufnahmestart geändert werden; Links/Rechts und Pegel auch während der Aufnahme. Mikrofondetails lassen sich separat einblenden.
+Während der Übertragung aktiviert Android die eigene Regel **„Toaster Mic Live“**: Benachrichtigungen, Nachrichten, Erinnerungen, Termine und Systemtöne sowie deren Vibration sind stumm. **Anrufe, Wecker und Medien bleiben erlaubt.** Nach dem Stoppen wird die Regel wieder ausgeschaltet, auch nach einem Absturz beim nächsten Start. Einmalig muss in den App-Einstellungen der Zugriff auf „Nicht stören“ erlaubt werden.
 
-Auf dem **Pixel 9** erfordert Stereo zunächst **Einstellungen → Mikrofone zuordnen**: Ruhe sowie die Öffnungen oben, unten und hinten jeweils drei Sekunden messen. Gespeichert werden nur Kanalpegel und die eindeutige Zuordnung. Der UNPROCESSED-Aufnahmepfad liest drei Rohkanäle; übertragen werden ausschließlich die gemessenen Mikrofone **unten und oben**, der hintere Kanal wird verworfen. Ohne eindeutige Zuordnung startet internes Stereo nicht. Nach einer Änderung des Android-Builds ist die Messung erneut erforderlich. Die physische Abnahme dieser neuen Zuordnung steht noch aus; Version 0.4.1 nutzte unten und hinten.
+## Always-On
 
-Links und rechts verwenden immer unterschiedliche Mikrofone; eine Auswahl tauscht die Zuordnung. Getrennte Pegelanzeigen in den Stereo-Einstellungen helfen beim Prüfen. Echo-Referenz, Telefonie und Loopback stehen nicht mehr als Mikrofone zur Auswahl. Auf anderen Geräten und bei externen Eingängen muss Android zwei unterschiedliche, direkt abgebildete Mikrofone bestätigen. Die Zuordnung steht unter Mikrofondetails.
+Optional auf beiden Seiten einschaltbar: Handy-Schalter **Always-On** und PC-Einstellung **Always-On** plus **Mit Windows starten**.
 
-**Windows:** Kompaktes natives Fenster ohne seitliche Seiten-Scrollleiste. Audioziel, Port und Netzwerkpuffer liegen im separaten Einstellungsfenster und werden vor der Verbindung gewählt. Netzwerkempfang, Geräteabfrage und Audioaufbau/-abbau laufen außerhalb des UI-Threads. Trennen und Schließen warten asynchron auf die Freigabe.
+- **Kopplung:** einmal manuell verbinden, während Always-On eingeschaltet ist. Der PC übergibt dann ein Kopplungsgeheimnis. Danach reagiert das Handy im Ruhezustand nur noch auf authentifizierte Weckpakete dieses PCs; Wiederholungen alter Pakete werden abgewiesen.
+- **Ruhezustand am Handy:** Der kleine Hintergrundprozess `:audio` (ohne Oberfläche) wartet auf dem UDP-Port. Es gibt keine Aufnahme, keinen Wake-Lock, keinen WLAN-Lock und keine Timer; die CPU darf schlafen. Im Emulator wurden in 20 Sekunden 0 CPU-Ticks gemessen.
+- **Ruhezustand am PC:** Symbol im Infobereich, kein Audiostream. Windows meldet ereignisgesteuert, wann ein Programm **CABLE Output** öffnet (0 ms CPU in 20 Sekunden gemessen).
+- **Wecken:** Sobald ein Programm das Mikrofon öffnet, weckt der PC das Handy. Das Handy sendet sofort, ohne auf eine weitere Bestätigung zu warten. Die ersten 10 Sekunden laufen im **Schnellstart**: niedrigste Latenz, und im Studio-Modus das beste Einzelmikrofon, während die Studio-Kette im Hintergrund einschwingt. Danach wird zeitgleich überblendet; die Aufnahme am Handy läuft dabei durch, es entsteht keine Lücke. 5 Sekunden nachdem das Programm das Mikrofon freigegeben hat, kehrt das Handy in den Ruhezustand zurück.
+- Ändert sich die Handy-IP, meldet sich das Handy authentifiziert beim gekoppelten PC (UDP 8126).
+- **Android-Grenze:** Seit Android 14/15 darf ein Mikrofondienst nach einem Neustart des Handys nicht von selbst starten. Es erscheint die Benachrichtigung **„Toaster Mic bereitstellen“**; ein Tipp genügt bis zum nächsten Neustart. Das Öffnen der App startet die Bereitschaft ebenfalls. Akkunutzung für Toaster Mic auf „uneingeschränkt“ stellen.
 
-Die Windows-Ausgangslautstärke reicht von **0 bis 1000 %**; 100 % entspricht dem Originalpegel, 1000 % einer Verstärkung um **20 dB**. Android hat weiterhin 0–200 %. Beide Regler multiplizieren sich; zu hohe Werte können hörbar übersteuern. PCM-Werte werden sicher begrenzt. Stumm verbraucht eingehendes Audio weiter, damit beim Einschalten keine alten Samples wiedergegeben werden.
+## Latenz und Akku
 
-## Puffer und Verbindung
+Einstellung am Handy: **Niedrigste Latenz** (Standard, 5-ms-Pakete, WLAN im Low-Latency-Modus), **Ausgewogen** (10-ms-Bündel) oder **Akku zuerst** (20-ms-Bündel, WLAN darf stromsparen). Gebündelte Pakete werden mit einem einzigen Systemaufruf gesendet. Der PC passt seinen Puffer automatisch an (Vorgaben ab 5 / 15 / 30 / 60 ms, adaptive Reserve, Kürzen in Sprechpausen wie in 0.4).
 
-- 48 kHz, 16-Bit-PCM, Mono/Stereo; ein UDP-Paket enthält 240 Frames = 5 ms.
-- Puffer-Vorgaben: **ab 5 / 15 / 30 / 60 ms**, Standard ab 15 ms.
-- Die App berücksichtigt die Größe der tatsächlichen WASAPI-Abrufe plus ein Reservepaket. Bei 10-ms-Abrufen beginnt auch die kleinste Vorgabe deshalb mit 15 ms Zielreserve.
-- Bei Unterläufen steigt die Zielreserve schrittweise bis 60 ms. Ein leerer Puffer wartet auf neue Pakete, statt deren Sequenz dauerhaft vorauszulaufen. Fehlstellen werden kurz ausgeblendet, die Wiederaufnahme eingeblendet.
-- Nach mindestens einer Sekunde leiser Audiodaten und zwei Sekunden ohne Unterlauf sinkt eine erhöhte Reserve einmal pro Sekunde um bis zu 10 ms. Dabei werden nur zusammenhängende, tatsächlich leise Pakete vor wartender Sprache verworfen, maximal 40 ms je Schritt. Die Verbindung und der Schlüssel bleiben erhalten. Die gewählte Mindestreserve und die aktuelle Geräteperiode werden weiterhin respektiert.
-- Ein einmalig großer WASAPI-Startabruf bestimmt nicht mehr dauerhaft die Mindestreserve. Die Geräteperiode wird in Sekundenfenstern neu bewertet. Lautes Audio, fehlende Pakete und die Stummschalttaste lösen keine Sprechpausen-Kürzung aus. Die Erkennung berücksichtigt die Ausgangsverstärkung und ist bewusst konservativ: bei erhöhtem Hintergrundpegel kann die Kürzung ausbleiben.
-- Die Hauptseite zeigt Pufferfüllstand und Ziel; Paketstatistiken und die in Sprechpausen gekürzte Dauer stehen im Tooltip.
-- Rückstau wird begrenzt. WASAPI nutzt den geteilten, ereignisgesteuerten Modus mit angefragten 10 ms.
-- Die Anzeige misst keine Ende-zu-Ende-Latenz. Android-Aufnahme, Paketankunft, Audiogerät, VB-CABLE und Zielprogramm beeinflussen das Ergebnis ebenfalls.
-- Direkte IPv4/UDP-Verbindung mit automatischem ECDH-P-256-Schlüsselaustausch; AES-GCM für Audio, HMAC-SHA256 für Steuerpakete. Das Protokoll bleibt mit Version 0.3.x kompatibel.
-- Es gibt keinen Verbindungscode und keine Geräteauthentifizierung. Ein erreichbarer PC kann sich bei freier Verbindung anmelden; nur im vertrauenswürdigen lokalen Netz verwenden.
-- Ein PC gleichzeitig; Keepalive und Wiederverbindung bei unveränderter Handy-IP. Gastnetz-Geräteisolierung verhindert die Verbindung.
+## Sicherheit
 
-Die Android-Aufnahme läuft als Foreground-Service mit sichtbarer Benachrichtigung bei gesperrtem Bildschirm weiter. Die Benachrichtigung bietet Stumm/Stoppen. Bei herstellerseitigen Energiesparproblemen die Akkunutzung für Toaster Mic auf uneingeschränkt stellen.
+Ephemerer P-256-Schlüsselaustausch, AES-256-GCM für Audio, HMAC-SHA256 für Steuerpakete (Protokoll v3, [docs/PROTOCOL.md](docs/PROTOCOL.md)). Ohne Kopplung kann sich wie bisher jeder PC im lokalen Netz an ein manuell gestartetes Handy anmelden. Nur im vertrauenswürdigen Netz verwenden. Version 0.4 ist nicht kompatibel.
 
 ## Bauen und prüfen
 
-Voraussetzungen: .NET 8 SDK, JDK 17, Android SDK 35/Build Tools 35.0.0. Der Windows-Build benötigt kein WDK mehr. Lokale Werkzeuge unter `.tools/` werden bevorzugt.
+Voraussetzungen: Rust (rustup, `stable-x86_64-pc-windows-gnu`, Targets `aarch64-linux-android` und optional `x86_64-linux-android`), Android SDK mit NDK und Build-Tools, JDK (z. B. aus Android Studio). Visual Studio, Gradle und .NET werden nicht benötigt. `scripts/env.ps1` richtet clang/lld aus dem NDK als Linker ein.
 
 ```powershell
-./scripts/build.ps1                 # Windows-Paket + Android-APK und Lint
-./scripts/build.ps1 -Target Windows
-./scripts/build.ps1 -Target Android
-./scripts/test.ps1                  # Protokoll, Audio, Windows-Lebenszyklus und WPF-Layout
+./scripts/build.ps1                  # Windows-Paket + Android-APK (arm64), Ergebnis in artifacts/
+./scripts/build.ps1 -Target Android -Emulator   # zusätzlich x86_64 für den Emulator
+./scripts/test.ps1                   # alle automatischen Prüfungen
 ```
 
-Automatisiert geprüft: 69 Core-/Protokoll-/Legacy-Brückenprüfungen und 9 Windows-Prüfungen, einschließlich Java/C#-Interop, 10.000 ungültiger Datagramme, UDP-Handshake, Mono/Stereo, Verstärkung, Stumm, adaptive Pufferung, Wiederaufnahme nach Aussetzern und Kürzung in Sprechpausen. Der Windows-Test betreibt den echten Netzwerkempfänger auf einem WPF-Dispatcher, simuliert einen langsamen Audiotreiber und prüft 20 schnelle Verbindungswechsel. WPF-Layoutbilder entstehen unter `artifacts/tests/`.
+Aufbau: `crates/toaster-core` (Protokoll, Krypto, Jitter-Puffer, Telefon-Logik, Simulator), `crates/toaster-dsp` (Studio-Kette), `crates/toaster-android-audio` (AAudio, JNI, Einstellungen, Statusdatei), `apps/windows`, `apps/android-engine` (`:audio`-Prozess), `apps/android-ui` (Slint-Oberfläche), `apps/android` (Manifest und die von Android vorgeschriebenen Java-Klassen: Dienst, Activity-Hülle, Nicht-stören-Regel, Boot-Hinweis), `tools/toaster-probe` (Handy-Simulator, PC-Empfänger ohne Audiogerät, Aufnahme-Messung).
 
-Zusätzlich auf einem Pixel 9 mit Android 17 geprüft: direkte Zuordnung des unteren/hinteren Mikrofons, Aufnahmedienst, getrennte Links-/Rechts-Auswahl und 600 verschlüsselte Stereo-Pakete über das echte WLAN zum PC. Beide Kanäle enthalten unterschiedliche Signale. Es wurden nur Messwerte gespeichert, keine Tonaufnahme. Die Diagnose-Instrumentation liegt ausschließlich im Debug-Quellsatz und läuft nur bei ausdrücklichem Aufruf.
+`toaster-probe`: `phone` simuliert ein Handy (Mono/Stereo/Studio, Always-On), `pc --host IP` empfängt ohne Audiogerät, `capture` öffnet CABLE Output wie ein Aufnahmeprogramm und misst die Zeit bis zum ersten Ton und Lücken.
 
-Noch offen sind räumlicher Hörtest, längerer WLAN-/VB-CABLE-Betrieb und Ende-zu-Ende-Latenzmessung. Die automatisierten Windows-Lebenszyklustests verwenden eine simulierte Audioausgabe. Die Android-APK ist eine mit lokalem Entwicklungsschlüssel signierte Testversion.
+Hardware-Abnahme: [docs/DEVICE-TEST.md](docs/DEVICE-TEST.md). Die historischen Treiberquellen unter `driver/` und `setup/` sind nicht Teil des Builds.
 
-Prüfliste: [docs/DEVICE-TEST.md](docs/DEVICE-TEST.md). Drahtformat: [docs/PROTOCOL.md](docs/PROTOCOL.md).
+## Releases
+
+`.github/workflows/release.yml` baut bei jedem Push auf `main` (Windows-Runner, MSVC, NDK r28c), führt alle Tests aus und veröffentlicht `v<Version>.<Build>` mit Installer, APK und ZIP. Die APK wird mit dem Release-Schlüssel aus den Repository-Secrets `ANDROID_KEYSTORE_BASE64` und `ANDROID_KEYSTORE_PASSWORD` signiert (Alias `toastermic`). Lokale Builds verwenden ihn, wenn `TOASTER_KEYSTORE`, `TOASTER_KEYSTORE_PASSWORD` und `TOASTER_KEY_ALIAS` gesetzt sind, sonst den Debug-Schlüssel. Der Installer entsteht lokal mit `./scripts/build.ps1 -Installer`, wenn Inno Setup 6 installiert ist.

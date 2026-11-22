@@ -1,0 +1,16 @@
+[package]
+name = "toaster-android-audio"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Shared Android pieces: settings, status file, JNI and AAudio helpers"
+
+[dependencies]
+toaster-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni.workspace = true
+libc.workspace = true
+ndk = { version = "0.9", default-features = false, features = ["audio", "api-level-28"] }

@@ -1,0 +1,42 @@
+[package]
+name = "toaster-windows"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Toaster Mic Windows receiver"
+build = "build.rs"
+
+[[bin]]
+name = "toaster-mic"
+path = "src/main.rs"
+
+[lib]
+name = "toaster_windows"
+path = "src/lib.rs"
+
+[dependencies]
+toaster-core.workspace = true
+toaster-dsp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-software", "software-renderer-systemfonts"] }
+tray-icon = { version = "0.26", default-features = false }
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_System_Threading",
+    "Win32_System_Registry",
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_Security",
+] }
+windows-core = "0.62"
+
+[build-dependencies]
+slint-build = "1.19"

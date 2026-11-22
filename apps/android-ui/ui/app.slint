@@ -1,0 +1,222 @@
+import { Button, LineEdit, Slider, Switch, ComboBox, ScrollView, Palette } from "std-widgets.slint";
+
+global Theme {
+    out property <color> bg: #111714;
+    out property <color> card: #1F2A23;
+    out property <color> text: #EDEFE9;
+    out property <color> muted: #ACB8AF;
+    out property <color> accent: #BDF477;
+    out property <color> track: #2C3930;
+    out property <color> error: #FF9E8A;
+}
+
+component Label inherits Text {
+    color: Theme.muted;
+    font-size: 14px;
+    wrap: word-wrap;
+}
+
+component Meter inherits Rectangle {
+    in property <float> value;
+    height: 8px;
+    border-radius: 4px;
+    background: Theme.track;
+    Rectangle {
+        x: 0;
+        width: parent.width * clamp(root.value, 0, 1);
+        border-radius: 4px;
+        background: Theme.accent;
+    }
+}
+
+component Segment inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    in property <bool> enabled: true;
+    callback clicked();
+    height: 44px;
+    border-radius: 8px;
+    background: selected ? Theme.accent : Theme.card;
+    opacity: enabled ? 1 : 0.5;
+    Text {
+        text: root.text;
+        color: root.selected ? Theme.bg : Theme.text;
+        font-size: 16px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppWindow inherits Window {
+    background: Theme.bg;
+    in-out property <int> page; // 0 main, 1 settings, 2 calibration
+
+    // Main
+    in property <string> status: "Bereit";
+    in property <bool> status-error;
+    in property <string> ip: "–";
+    in property <float> meter;
+    in property <bool> running;
+    in property <bool> muted;
+    in property <int> mode; // 0 mono, 1 stereo, 2 studio
+    in property <bool> live;
+    in property <bool> always-on;
+    in property <string> hint;
+
+    // Settings
+    in-out property <string> port;
+    in-out property <float> gain: 100;
+    in-out property <int> profile;
+    in property <[string]> inputs;
+    in-out property <int> input-index;
+    in-out property <int> left-index;
+    in property <[string]> channel-names: ["Mikrofon unten", "Mikrofon oben"];
+    in property <float> left-meter;
+    in property <float> right-meter;
+    in property <bool> can-calibrate;
+    in property <bool> dnd-granted;
+    in property <string> settings-error;
+
+    // Calibration
+    in property <string> cal-prompt;
+    in property <string> cal-feedback;
+    in property <string> cal-button: "Messung starten";
+    in property <bool> cal-busy;
+
+    callback start-stop();
+    callback toggle-mute();
+    callback set-mode(int);
+    callback set-live(bool);
+    callback set-always-on(bool);
+    callback open-settings();
+    callback close-settings();
+    callback gain-edited(float);
+    callback left-edited(int);
+    callback calibrate();
+    callback cal-measure();
+    callback cal-close();
+    callback open-dnd();
+    callback open-battery();
+
+    init => {
+        Palette.color-scheme = ColorScheme.dark;
+    }
+
+    if page == 0: ScrollView {
+        VerticalLayout {
+            padding: 22px;
+            padding-top: 36px;
+            padding-bottom: 40px;
+            spacing: 14px;
+            HorizontalLayout {
+                Text { text: "Toaster Mic"; font-size: 30px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
+                Rectangle { }
+                Button { text: "Einstellungen"; clicked => { root.open-settings(); } }
+            }
+            Rectangle {
+                background: Theme.card;
+                border-radius: 10px;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 6px;
+                    Text { text: root.status; font-size: 18px; font-weight: 600; color: root.status-error ? Theme.error : Theme.accent; wrap: word-wrap; }
+                    Label { text: "Handy-IP"; }
+                    Text { text: root.ip; font-size: 24px; color: Theme.text; wrap: word-wrap; }
+                }
+            }
+            Meter { value: root.meter; }
+            Label { text: "Modus"; }
+            HorizontalLayout {
+                spacing: 8px;
+                Segment { text: "Mono"; selected: root.mode == 0; enabled: !root.running; clicked => { root.set-mode(0); } }
+                Segment { text: "Stereo"; selected: root.mode == 1; enabled: !root.running; clicked => { root.set-mode(1); } }
+                Segment { text: "Studio"; selected: root.mode == 2; enabled: !root.running; clicked => { root.set-mode(2); } }
+            }
+            if root.mode == 2: Label {
+                text: "Studio: alle Mikrofone gehen roh an den PC und werden dort zu einer lauten, klaren Stimme verrechnet.";
+                font-size: 13px;
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Switch { checked: root.live; toggled => { root.set-live(self.checked); } }
+                Text { text: "Live: Benachrichtigungen und Vibration stumm"; color: Theme.text; font-size: 15px; wrap: word-wrap; vertical-alignment: center; horizontal-stretch: 1; }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                Switch { checked: root.always-on; toggled => { root.set-always-on(self.checked); } }
+                Text { text: "Always-On: der PC weckt das Mikrofon bei Bedarf"; color: Theme.text; font-size: 15px; wrap: word-wrap; vertical-alignment: center; horizontal-stretch: 1; }
+            }
+            if root.hint != "": Label { text: root.hint; font-size: 13px; color: Theme.accent; }
+            Rectangle { vertical-stretch: 1; min-height: 8px; }
+            HorizontalLayout {
+                spacing: 10px;
+                Button { text: root.muted ? "Ton an" : "Stumm"; clicked => { root.toggle-mute(); } }
+                Button {
+                    text: root.running ? "Stoppen" : "Mikrofon starten";
+                    primary: true;
+                    horizontal-stretch: 1;
+                    clicked => { root.start-stop(); }
+                }
+            }
+        }
+    }
+
+    if page == 1: ScrollView {
+        VerticalLayout {
+            padding: 22px;
+            padding-top: 36px;
+            padding-bottom: 40px;
+            spacing: 10px;
+            alignment: start;
+            Text { text: "Einstellungen"; font-size: 26px; font-weight: 700; color: Theme.text; }
+            Label { text: "UDP-Port (1024–65535)"; }
+            LineEdit { text <=> root.port; input-type: number; enabled: !root.running; }
+            Text { text: "Aufnahmepegel " + round(root.gain) + " %"; color: Theme.text; font-size: 15px; }
+            Slider { minimum: 0; maximum: 200; value <=> root.gain; changed(v) => { root.gain-edited(v); } }
+            Label { text: "Latenz und Akku"; }
+            ComboBox {
+                model: ["Niedrigste Latenz (Standard)", "Ausgewogen (+10 ms)", "Akku zuerst (+20 ms)"];
+                current-index <=> root.profile;
+                enabled: !root.running;
+            }
+            Label { text: "Eingabegerät (Mono und Stereo)"; }
+            ComboBox { model: root.inputs; current-index <=> root.input-index; enabled: !root.running; }
+            Label { text: "Links"; }
+            ComboBox {
+                model: root.channel-names;
+                current-index <=> root.left-index;
+                selected => { root.left-edited(self.current-index); }
+            }
+            Meter { value: root.left-meter; }
+            Label { text: "Rechts: " + root.channel-names[1 - root.left-index]; }
+            Meter { value: root.right-meter; }
+            if root.can-calibrate: Button { text: "Mikrofone zuordnen"; enabled: !root.running; clicked => { root.calibrate(); } }
+            Button {
+                text: root.dnd-granted ? "Nicht-stören-Zugriff erteilt" : "Zugriff auf „Nicht stören“ erlauben";
+                clicked => { root.open-dnd(); }
+            }
+            Button { text: "Akkueinstellungen (uneingeschränkt empfohlen)"; clicked => { root.open-battery(); } }
+            if root.settings-error != "": Text { text: root.settings-error; color: Theme.error; wrap: word-wrap; }
+            Button { text: "Fertig"; primary: true; clicked => { root.close-settings(); } }
+            Label { text: "Toaster Mic 0.5.0 · Made with Slint (slint.dev)"; font-size: 11px; }
+        }
+    }
+
+    if page == 2: VerticalLayout {
+        padding: 24px;
+        padding-top: 48px;
+        padding-bottom: 40px;
+        spacing: 16px;
+        Text { text: "Mikrofone zuordnen"; font-size: 26px; font-weight: 700; color: Theme.text; }
+        Text { text: root.cal-prompt; font-size: 19px; color: Theme.text; wrap: word-wrap; }
+        Label { text: root.cal-feedback; font-size: 15px; }
+        Rectangle { vertical-stretch: 1; }
+        Button { text: root.cal-button; primary: true; enabled: !root.cal-busy; clicked => { root.cal-measure(); } }
+        Button { text: "Abbrechen"; enabled: !root.cal-busy; clicked => { root.cal-close(); } }
+    }
+}

@@ -1,0 +1,13 @@
+[package]
+name = "toaster-dsp"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+toaster-core.workspace = true
+realfft.workspace = true
+nnnoiseless.workspace = true
+
+[dev-dependencies]
+nnnoiseless.workspace = true

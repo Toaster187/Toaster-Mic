@@ -1,0 +1,208 @@
+import { Button, LineEdit, Slider, CheckBox, ComboBox, Palette, ScrollView } from "std-widgets.slint";
+
+export global Theme {
+    out property <color> bg: #111714;
+    out property <color> card: #1F2A23;
+    out property <color> text: #EDEFE9;
+    out property <color> muted: #ACB8AF;
+    out property <color> accent: #BDF477;
+    out property <color> track: #2C3930;
+    out property <color> error: #FF9E8A;
+}
+
+component Label inherits Text {
+    color: Theme.muted;
+    font-size: 13px;
+    wrap: word-wrap;
+}
+
+component Meter inherits Rectangle {
+    in property <float> value;
+    height: 6px;
+    border-radius: 3px;
+    background: Theme.track;
+    Rectangle {
+        x: 0;
+        width: parent.width * clamp(root.value, 0, 1);
+        height: parent.height;
+        border-radius: 3px;
+        background: Theme.accent;
+    }
+}
+
+component Card inherits Rectangle {
+    background: Theme.card;
+    border-radius: 8px;
+}
+
+export component MainWindow inherits Window {
+    title: "Toaster Mic";
+    icon: app-icon;
+    preferred-width: 520px;
+    preferred-height: 600px;
+    min-width: 440px;
+    min-height: 540px;
+    background: Theme.bg;
+    default-font-family: "Segoe UI";
+
+    in property <image> app-icon;
+    in-out property <bool> settings-page;
+
+    // Main page
+    in-out property <string> host;
+    in property <string> status: "Bereit";
+    in property <string> stats: "Mikrofon auf dem Handy starten.";
+    in property <string> details;
+    in property <string> output-name: "Audiogeräte werden geladen …";
+    in-out property <float> gain: 100;
+    in property <string> gain-text: "100 % · 0 dB";
+    in property <float> meter;
+    in-out property <bool> muted;
+    in property <bool> busy;
+    in property <bool> connected;
+    in property <bool> always-on-badge;
+
+    // Settings page
+    in property <[string]> devices;
+    in-out property <int> device-index;
+    in-out property <string> port;
+    in-out property <int> buffer-index;
+    in-out property <int> noise-index;
+    in-out property <bool> always-on;
+    in-out property <bool> autostart;
+    in-out property <bool> auto-connect;
+    in property <string> pairing-text;
+    in property <string> settings-error;
+
+    callback connect-clicked();
+    callback open-settings();
+    callback save-settings();
+    callback cancel-settings();
+    callback gain-edited(float);
+    callback mute-edited(bool);
+    callback unpair();
+
+    init => {
+        Palette.color-scheme = ColorScheme.dark;
+    }
+
+    if !settings-page: VerticalLayout {
+        padding: 28px;
+        spacing: 18px;
+        HorizontalLayout {
+            Text {
+                text: "Toaster Mic";
+                font-size: 26px;
+                font-weight: 600;
+                color: Theme.text;
+                vertical-alignment: center;
+            }
+            Rectangle { }
+            Button {
+                text: "Einstellungen";
+                enabled: !root.busy && !root.connected;
+                clicked => { root.open-settings(); }
+            }
+        }
+        Card {
+            VerticalLayout {
+                padding: 16px;
+                spacing: 6px;
+                Text {
+                    text: root.status;
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: Theme.text;
+                    wrap: word-wrap;
+                    overflow: elide;
+                }
+                Label { text: root.stats; }
+                if root.details != "": Label { text: root.details; font-size: 11px; }
+            }
+        }
+        VerticalLayout {
+            spacing: 6px;
+            Label { text: "Handy-IP"; color: Theme.text; }
+            LineEdit {
+                text <=> root.host;
+                enabled: !root.busy && !root.connected;
+                placeholder-text: "z. B. 192.168.1.50";
+                accepted => { root.connect-clicked(); }
+            }
+            Label { text: root.output-name; }
+            if root.always-on-badge: Label {
+                text: "Always-On: weckt das Handy automatisch, sobald ein Programm CABLE Output verwendet.";
+                color: Theme.accent;
+            }
+        }
+        Rectangle { vertical-stretch: 1; }
+        VerticalLayout {
+            spacing: 10px;
+            HorizontalLayout {
+                Text { text: "Lautstärke"; color: Theme.text; }
+                Rectangle { }
+                Text { text: root.gain-text; color: Theme.text; }
+            }
+            Slider {
+                minimum: 0;
+                maximum: 1000;
+                value <=> root.gain;
+                changed(v) => { root.gain-edited(v); }
+            }
+            Meter { value: root.meter; }
+            CheckBox {
+                text: "Stumm";
+                checked <=> root.muted;
+                toggled => { root.mute-edited(self.checked); }
+            }
+        }
+        Button {
+            text: root.connected ? "Trennen" : "Verbinden";
+            primary: true;
+            enabled: !root.busy;
+            clicked => { root.connect-clicked(); }
+        }
+    }
+
+    if settings-page: ScrollView {
+        VerticalLayout {
+            padding: 24px;
+            spacing: 10px;
+            alignment: start;
+            Text { text: "Einstellungen"; font-size: 22px; font-weight: 600; color: Theme.text; }
+            Label { text: "Audioziel (CABLE Input)"; color: Theme.text; }
+            ComboBox { model: root.devices; current-index <=> root.device-index; }
+            Label { text: "UDP-Port des Handys (1024–65535)"; color: Theme.text; }
+            LineEdit { text <=> root.port; input-type: number; }
+            Label { text: "Netzwerkpuffer"; color: Theme.text; }
+            ComboBox {
+                model: ["ab 5 ms", "ab 15 ms (Standard)", "ab 30 ms", "ab 60 ms"];
+                current-index <=> root.buffer-index;
+            }
+            Label { text: "Studio-Rauschunterdrückung"; color: Theme.text; }
+            ComboBox {
+                model: ["Aus", "Mittel", "Stark"];
+                current-index <=> root.noise-index;
+            }
+            CheckBox { text: "Always-On: Handy automatisch wecken, wenn das Mikrofon verwendet wird"; checked <=> root.always-on; }
+            CheckBox { text: "Mit Windows starten (im Infobereich)"; checked <=> root.autostart; }
+            CheckBox { text: "Beim Start automatisch verbinden"; checked <=> root.auto-connect; }
+            HorizontalLayout {
+                spacing: 8px;
+                Label { text: root.pairing-text; vertical-alignment: center; }
+                if root.pairing-text != "Nicht gekoppelt": Button {
+                    text: "Kopplung aufheben";
+                    clicked => { root.unpair(); }
+                }
+            }
+            if root.settings-error != "": Text { text: root.settings-error; color: Theme.error; wrap: word-wrap; }
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: end;
+                Button { text: "Abbrechen"; clicked => { root.cancel-settings(); } }
+                Button { text: "Speichern"; primary: true; clicked => { root.save-settings(); } }
+            }
+            Label { text: "Toaster Mic 0.5.0 · Made with Slint (slint.dev)"; font-size: 11px; }
+        }
+    }
+}

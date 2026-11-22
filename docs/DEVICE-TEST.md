@@ -1,40 +1,39 @@
-# Hardware-Abnahme
+# Abnahme 0.5
 
-## Android 0.4.2: oben/unten (physische Messung noch offen)
+## Bereits geprüft
 
-Drei UNPROCESSED-Rohkanäle werden per Kanalindexmaske gelesen. Eine geführte lokale Messung ordnet oben, unten und hinten anhand ihrer Pegel zu; mehrdeutige und doppelte Zuordnungen werden abgelehnt. Nur oben/unten gelangen in die beiden übertragenen Kanäle. Kalibrierungslogik automatisiert geprüft; Android-Build und Lint erfolgreich. Installation auf Pixel 9 erfolgt, geführte Messung zur physischen Abnahme geöffnet. Das belegt noch nicht die gewünschte physische Trennung.
+- **Automatisch** (`scripts/test.ps1`, 37 Prüfungen):
+  - Protokoll v3: jedes manipulierte Byte, Kürzungen, 10.000 Zufallsdatagramme, MTU-Grenze für 1–4 Kanäle.
+  - Handshake, Kopplung, WAKE inkl. Fälschung und Wiedereinspielen.
+  - Alle Jitter-Puffer-Fälle aus 0.4.
+  - Windows-Empfänger gegen den Handy-Simulator: langsamer Treiber, 20 schnelle Wechsel, Wecken aus dem Ruhezustand.
+  - Studio-DSP: Laufzeiten ±1 Sample, +4,35 dB Rauschabstand bei drei ähnlichen Mikrofonen (Theorie +4,33), mit schwachem Mikrofon +2,66 dB (Theorie +2,65), nie über −1 dBFS, −60-dBFS-Rohsignal wird auf etwa −21 dBFS angehoben, lückenlose Schnellstart-Überblendung, keine Allokation, 0,6 ms pro 10-ms-Block.
+- **Android-Emulator** (Android 17, x86_64):
+  - Oberfläche (Slint), zwei Prozesse (UI und `:audio`), AAudio-Aufnahme, verschlüsselter Empfang am PC.
+  - Kopplung, Ruhezustand ohne Aufnahme: 0 CPU-Ticks in 20 s.
+  - WAKE → erster Ton nach 80–90 ms, STOP → zurück in den Ruhezustand.
+  - Live-Regel aktiv während der Übertragung, danach aus; Richtlinie: Anrufe, Wiederholungsanrufe, Wecker und Medien erlaubt.
+  - Neustart des Ruhezustands nach beendetem Prozess.
+- **Windows** (ohne Audiogerät, weil die Testumgebung keinen Zugriff auf Windows-Audio hat):
+  - Im Infobereich 0 ms CPU in 20 s, 3,5 MB privater Speicher.
+  - Empfang 0,5 % eines Kerns.
+  - Das Programm benötigt nur Windows-System-DLLs.
 
-## Historische Messung 0.4.1: unten/hinten
-
-Am 22.09.2026 auf dem angeschlossenen **Pixel 9 mit Android 17** geprüft:
-
-- UNPROCESSED, 48 kHz, Stereo: Android meldet `builtin_mic_1` (bottom) direkt auf Kanal 0 und `builtin_mic_2` (back) direkt auf Kanal 1.
-- VOICE_RECOGNITION meldet nur ein aktives Mikrofon. Zwei gleichzeitig geöffnete Mono-Aufnahmen werden auf dasselbe untere Mikrofon geroutet und sind daher keine Lösung für dieses Gerät.
-- Der tatsächliche Toaster-Mic-Aufnahmedienst bestätigt die getrennte Zuordnung. Links-/Rechts-Auswahl wurde im laufenden Dienst gewechselt; beide Ausgänge bleiben unterschiedlich zugeordnet.
-- Verschlüsselte WLAN-Übertragung an den lokalen PC: **600 Pakete / 144.000 Stereo-Frames**, 136.363 Frame-Paare mit unterschiedlichen Samples. RMS links 23,36, rechts 25,09; Korrelation 0,744. Zusammen mit der direkten physischen Zuordnung bestätigt dies zwei getrennte Audioquellen. Gespeichert wurden nur Messwerte, keine Tonaufnahme.
-- Die Puffer-Rückführung ist mit simulierten Audio-/Paketfolgen geprüft: erhöhte Reserve fällt in leisen Pausen zurück; wartende Sprache, kontinuierliche Sprache, Stummschaltung und verstärkte leise Sprache werden nicht als wegwerfbare Stille behandelt.
-
-Messdaten liegen lokal unter `artifacts/pixel-audio-probe.json`, `artifacts/pixel-service-probe-run.txt` und `artifacts/tests/pixel-network-stereo.json`. Noch offen sind räumlicher Hörtest, lang laufender WLAN-/VB-CABLE-Betrieb und gemessene Ende-zu-Ende-Latenz. Die folgende Liste bleibt für die vollständige Abnahme relevant.
+## Noch offen – bitte am echten Gerät prüfen
 
 | Test | Durchführung | Erwartung |
 | --- | --- | --- |
-| Android-Hauptseite | App in Mono öffnen | Status, IP, Pegel, Start/Stumm; Einstellungen im Menü |
-| Stereo-Menü | Einstellungen öffnen; Stereo an/aus | Eingabegerät und Links/Rechts nur bei Stereo sichtbar |
-| Berechtigung | Mikrofonrecht ablehnen, dann erlauben | Klare Meldung; Start nach Erlaubnis |
-| Mono | Aufnahme starten und verbinden | Automatische Eingabe; beide Ausgabekanäle gleich |
-| Stereo | Zwei verfügbare Kanäle aufnehmen und vertauschen | Tatsächliche Trennung prüfen; Hardwaregrenzen notieren |
-| Einstellungen | Port/Gerät ändern, App neu öffnen | Werte gespeichert; Aufnahmeparameter während Aufnahme gesperrt |
-| Windows-Layout | Fenster bis Mindestgröße verkleinern; 100/150/200 % Skalierung | Alle Bedienelemente erreichbar, keine Seiten-Scrollleiste |
-| VB-CABLE | CABLE Input in Toaster Mic, CABLE Output in OBS/Discord | Audiopegel im Zielprogramm |
-| Trennen | Während Audioempfang mehrfach trennen/verbinden | Fenster reagiert weiter; keine alte Audioausgabe |
-| Schließen | Beim Aufbau und beim Trennen Fenster schließen | Kontrolliertes Ende ohne Task-Manager |
-| Stumm | Mehrere Sekunden stumm, dann Ton an | Sofort aktuelle Aufnahme, keine alten gepufferten Samples |
-| Verstärkung | Windows 100/200/500/1000 % bei leisem Eingang | Messbar 0/+6/+14/+20 dB bis zur PCM-Begrenzung |
-| Puffer | Kleinste Vorgabe und 15/30/60 ms vergleichen | Ziel berücksichtigt Audioabrufe; nach Aussetzern Erholung |
-| Netzverlust | WLAN kurz ausschalten und erneut verbinden | Begrenzter Rückstau, automatische Wiederverbindung |
-| Aufnahme-Neustart | Handy-Aufnahme stoppen und erneut starten | Neuer Schlüssel, neuer Pufferzustand |
-| Hintergrund | 30–60 Minuten mit gesperrtem Handy | Fortgesetzte Übertragung; Akku-Ausnahmen dokumentieren |
-| Gerätestörung | Ausgabe deaktivieren oder USB-Mikrofon abziehen | Verständliche Fehlermeldung, bedienbares Fenster |
-| Latenz | Impuls direkt und über Toaster Mic aufnehmen | Differenz messen; Pufferanzeige separat notieren |
+| VB-CABLE | Windows-App, CABLE Input; OBS/Discord mit CABLE Output | Pegel im Zielprogramm, keine Aussetzer |
+| Pixel 9 Mono/Stereo | je 60 s, Stereo nach „Mikrofone zuordnen“ | Stereo: unterschiedliche Kanäle oben/unten |
+| Pixel 9 Studio | 3 Rohkanäle, Status „Studio · 3 Mikrofone“ | PC-Status „Verbunden · Studio“, lauter und klarer als Mono (Hörtest) |
+| CPU Handy | `adb shell top -p $(adb shell pidof de.toaster.mic:audio)` während Mono | deutlich unter 0.4 (Java) |
+| Akku | `adb shell dumpsys batterystats --reset`, 30 min gesperrt übertragen, dann `dumpsys batterystats` | Verbrauch notieren |
+| Ruhezustand | Always-On 1–2 h bei ausgeschaltetem Bildschirm, dann `dumpsys batterystats` | Anteil von Toaster Mic praktisch null |
+| Wecken | `toaster-probe capture --seconds 20` am PC (öffnet CABLE Output) | `first_audio_ms` notieren (WLAN-Stromsparen, erwartet 0,3–1 s) |
+| Übergang | wie oben, Studio-Modus, über 10 s hinaus aufnehmen | `max_gap_ms` ≤ 500, erwartet < 50 |
+| Doze | `adb shell dumpsys deviceidle force-idle`, dann Programm öffnet Mikrofon | Handy wacht auf |
+| Neustart Handy | Always-On an, Handy neu starten | Benachrichtigung „Toaster Mic bereitstellen“, ein Tipp genügt |
+| Live | Testbenachrichtigung `adb shell cmd notification post -S bigtext test "Test"` während Übertragung | kein Ton, keine Vibration; Anruf/Wecker hörbar |
+| IP-Wechsel | Handy-WLAN neu verbinden (neue IP), danach Programm öffnet Mikrofon | PC übernimmt die neue IP (ANNOUNCE) |
 
-Handymodell, Android-Version, Akkueinstellung, Router/Band, Windows-Ausgabe, Pufferziel, Aussetzer und gemessene Ende-zu-Ende-Verzögerung pro Lauf festhalten.
+Je Lauf festhalten: Handy, Android-Version, Akkueinstellung, Router/Band, Modus, Profil, Pufferziel, Aussetzer und gemessene Verzögerung.

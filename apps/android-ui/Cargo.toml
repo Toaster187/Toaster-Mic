@@ -1,0 +1,26 @@
+[package]
+name = "toaster-android-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Toaster Mic Android user interface"
+build = "build.rs"
+
+[lib]
+name = "toaster_ui"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+toaster-core.workspace = true
+toaster-android-audio.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni.workspace = true
+libc.workspace = true
+ndk = { version = "0.9", default-features = false, features = ["audio", "api-level-28"] }
+android-activity = { version = "0.6", features = ["native-activity"] }
+slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2", "backend-android-activity-06", "renderer-software"] }
+
+[build-dependencies]
+slint-build = "1.19"

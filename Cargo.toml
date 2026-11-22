@@ -1,0 +1,50 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/toaster-core",
+    "crates/toaster-dsp",
+    "crates/toaster-android-audio",
+    "apps/windows",
+    "apps/android-engine",
+    "apps/android-ui",
+    "tools/toaster-probe",
+]
+default-members = [
+    "crates/toaster-core",
+    "crates/toaster-dsp",
+    "apps/windows",
+    "tools/toaster-probe",
+]
+
+[workspace.package]
+version = "0.5.0"
+edition = "2021"
+license = "Proprietary"
+publish = false
+
+[workspace.dependencies]
+toaster-core = { path = "crates/toaster-core" }
+toaster-dsp = { path = "crates/toaster-dsp" }
+toaster-android-audio = { path = "crates/toaster-android-audio" }
+aes-gcm = "0.10.3"
+hmac = "0.12.1"
+sha2 = "0.10.9"
+p256 = { version = "0.13.2", default-features = false, features = ["ecdh", "std"] }
+rand_core = { version = "0.6.4", features = ["getrandom"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+realfft = "3.5"
+nnnoiseless = { version = "0.5.2", default-features = false }
+jni = "0.21.1"
+libc = "0.2"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+[profile.dev.package."*"]
+opt-level = 2

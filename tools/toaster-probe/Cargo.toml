@@ -1,0 +1,13 @@
+[package]
+name = "toaster-probe"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "Phone simulator and capture probe for Toaster Mic tests"
+
+[dependencies]
+toaster-core.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+toaster-windows = { path = "../../apps/windows" }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Threading"] }
