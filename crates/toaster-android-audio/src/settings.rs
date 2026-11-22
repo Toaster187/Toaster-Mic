@@ -37,6 +37,8 @@ pub struct PhoneSettings {
     pub left: u8,
     /// Preferred input device id for mono/stereo (0 = automatic).
     pub device: i32,
+    /// Mono microphone: 0 automatic, 1 bottom, 2 top, 3 rear (needs the guided assignment).
+    pub mono_mic: u8,
     /// 0 lowest latency, 1 balanced, 2 battery.
     pub profile: u8,
     pub muted: bool,
@@ -54,6 +56,7 @@ impl Default for PhoneSettings {
             gain: 100,
             left: 0,
             device: 0,
+            mono_mic: 0,
             profile: 0,
             muted: false,
             live: false,
@@ -85,6 +88,7 @@ impl PhoneSettings {
         s.gain = s.gain.min(200);
         s.left = s.left.min(1);
         s.profile = s.profile.min(2);
+        s.mono_mic = s.mono_mic.min(3);
         s
     }
     pub fn save(&self, files: &Path) -> std::io::Result<()> {

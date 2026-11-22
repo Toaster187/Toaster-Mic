@@ -60,6 +60,10 @@ mod ui {
         asked_dnd: bool,
         cal: Option<Cal>,
         tick: u32,
+        /// After sending START/STOP the engine needs a moment; until then the
+        /// button shows the requested state and further taps are ignored.
+        transition_until: Option<std::time::Instant>,
+        requested_running: bool,
     }
 
     thread_local! {
@@ -108,6 +112,8 @@ mod ui {
             asked_dnd: false,
             cal: None,
             tick: 0,
+            transition_until: None,
+            requested_running: false,
         }));
         STATE.with(|s| *s.borrow_mut() = Some(state));
         with(|s| s.init_ui());
@@ -120,6 +126,9 @@ mod ui {
         });
         ui.on_set_mode(|m| {
             with(|s| s.set_mode(m));
+        });
+        ui.on_set_mono_mic(|v| {
+            with(|s| s.set_mono_mic(v));
         });
         ui.on_set_live(|v| {
             with(|s| s.set_live(v));
@@ -173,6 +182,7 @@ mod ui {
         fn init_ui(&mut self) {
             let s = &self.settings;
             self.ui.set_mode(mode_index(s.mode));
+            self.ui.set_mono_mic(s.mono_mic as i32);
             self.ui.set_live(s.live);
             self.ui.set_always_on(s.always_on);
             self.ui.set_muted(s.muted);
@@ -186,6 +196,8 @@ mod ui {
             self.ui.set_inputs(ModelRc::new(VecModel::from(names)));
             self.ui.set_input_index(index as i32);
             self.ui.set_can_calibrate(self.calibration_channels() >= 2);
+            self.ui.set_can_choose_mic(self.calibration_channels() >= 2);
+            self.ui.set_has_rear(self.calibration_channels() >= 3);
             let names: Vec<SharedString> = if self.build.is_pixel9() {
                 vec!["Mikrofon unten".into(), "Mikrofon oben".into()]
             } else {
@@ -232,14 +244,23 @@ mod ui {
                 self.status = st;
             }
             let st = &self.status;
-            let running = self.capturing();
+            let mut running = self.capturing();
+            if let Some(until) = self.transition_until {
+                if running == self.requested_running || std::time::Instant::now() > until {
+                    self.transition_until = None;
+                } else {
+                    running = self.requested_running;
+                }
+            }
             self.ui.set_running(running);
             let text = match st.code {
                 StatusCode::Stopped if st.message.is_empty() => "Bereit".to_string(),
                 _ if st.message.is_empty() => "…".to_string(),
                 _ => st.message.clone(),
             };
-            self.ui.set_status(text.into());
+            if self.transition_until.is_none() {
+                self.ui.set_status(text.into());
+            }
             self.ui.set_status_error(st.code == StatusCode::Error);
             self.ui.set_meter(st.peak as f32 / 32768.0);
             self.ui.set_left_meter(st.left_peak as f32 / 32768.0);
@@ -268,7 +289,12 @@ mod ui {
         }
 
         fn start_stop(&mut self) {
+            // Ignore repeated taps while the engine is starting or stopping.
+            if self.transition_until.is_some_and(|t| std::time::Instant::now() < t) {
+                return;
+            }
             if self.capturing() {
+                self.transition(false);
                 // Manual stop. With Always-On the phone returns to standby.
                 self.java.send(if self.settings.always_on { java::STANDBY } else { java::STOP }, "", 0);
                 return;
@@ -283,7 +309,8 @@ mod ui {
         }
 
         fn needs_calibration(&self) -> bool {
-            if self.settings.mode != Mode::Stereo {
+            let mono_choice = self.settings.mode == Mode::Mono && self.settings.mono_mic > 0;
+            if self.settings.mode != Mode::Stereo && !mono_choice {
                 return false;
             }
             let internal = self.devices.iter().find(|d| d.id == self.settings.device).is_none_or(|d| d.kind == device::TYPE_BUILTIN_MIC);
@@ -317,7 +344,27 @@ mod ui {
                 self.open_calibration();
                 return;
             }
+            self.transition(true);
             self.java.send(java::START, "", 0);
+        }
+
+        fn transition(&mut self, running: bool) {
+            self.requested_running = running;
+            self.transition_until = Some(std::time::Instant::now() + Duration::from_secs(3));
+            self.ui.set_running(running);
+            self.ui.set_status(if running { "Mikrofon wird gestartet …" } else { "Wird gestoppt …" }.into());
+        }
+
+        fn set_mono_mic(&mut self, v: i32) {
+            if self.capturing() {
+                return;
+            }
+            self.settings.mono_mic = v.clamp(0, 3) as u8;
+            self.ui.set_mono_mic(v);
+            self.save();
+            if self.status.code == StatusCode::Standby {
+                self.java.send(java::STANDBY, "replan", 1);
+            }
         }
 
         fn toggle_mute(&mut self) {
@@ -342,7 +389,7 @@ mod ui {
             self.save();
             // A standby engine plans its capture at start: restart it.
             if self.status.code == StatusCode::Standby {
-                self.java.send(java::STANDBY, "", 0);
+                self.java.send(java::STANDBY, "replan", 1);
             }
         }
 

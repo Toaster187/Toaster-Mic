@@ -70,6 +70,10 @@ public class MicService extends Service {
             case START:
             case STANDBY: {
                 boolean wantStandby = STANDBY.equals(action);
+                // A repeated request must not restart a running engine (that
+                // briefly showed "Gestoppt"); only a mode change re-plans it.
+                boolean replan = "replan".equals(intent.getStringExtra("key"));
+                if (running && standby == wantStandby && !replan) return START_NOT_STICKY;
                 foreground(wantStandby);
                 if (running) Native.stop();
                 muted = Prefs.bool(this, "muted");

@@ -109,6 +109,38 @@ pub fn plan(
     let internal = selected.is_none_or(|d| d.kind == device::TYPE_BUILTIN_MIC);
     let raw = |device_id: i32, channels: i32| CaptureConfig { device_id, channels, unprocessed: true, low_latency, frames_per_callback: None };
     let plan = match settings.mode {
+        Mode::Mono if settings.mono_mic > 0 && internal => {
+            // A specific built-in microphone: read the raw channels, send one.
+            let (channels, device) = if build.is_pixel9() {
+                (3, device::builtin(devices, Some("bottom")))
+            } else {
+                (2, device::builtin(devices, None))
+            };
+            let name = ["", "unten", "oben", "hinten"][settings.mono_mic as usize];
+            match (settings.calibrated_for(&build.fingerprint, channels), device) {
+                (_, None) => Err("Eingebaute Mikrofone nicht verfügbar.".into()),
+                (None, _) => Err("Bitte zuerst die Mikrofone unter Einstellungen zuordnen.".into()),
+                (Some(c), Some(d)) => {
+                    let index = match settings.mono_mic {
+                        1 => c.bottom,
+                        2 => c.top,
+                        _ => c.rear,
+                    };
+                    if index < 0 {
+                        Err(format!("Dieses Gerät hat kein Mikrofon {name}."))
+                    } else {
+                        Ok(Plan {
+                            config: raw(d.id, channels as i32),
+                            send_channels: 1,
+                            map: [[index as usize; 4]; 2],
+                            flags: 0,
+                            label: format!("Mono · Mikrofon {name}"),
+                            expect_device: if build.is_pixel9() { d.id } else { 0 },
+                        })
+                    }
+                }
+            }
+        }
         Mode::Mono => Ok(fallback.clone()),
         Mode::Stereo if build.is_pixel9() && internal => {
             let Some(bottom) = device::builtin(devices, Some("bottom")) else {

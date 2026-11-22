@@ -64,6 +64,9 @@ export component AppWindow inherits Window {
     in property <bool> running;
     in property <bool> muted;
     in property <int> mode; // 0 mono, 1 stereo, 2 studio
+    in property <int> mono-mic; // 0 auto, 1 bottom, 2 top, 3 rear
+    in property <bool> has-rear;
+    in property <bool> can-choose-mic;
     in property <bool> live;
     in property <bool> always-on;
     in property <string> hint;
@@ -91,6 +94,7 @@ export component AppWindow inherits Window {
     callback start-stop();
     callback toggle-mute();
     callback set-mode(int);
+    callback set-mono-mic(int);
     callback set-live(bool);
     callback set-always-on(bool);
     callback open-settings();
@@ -110,8 +114,8 @@ export component AppWindow inherits Window {
     if page == 0: ScrollView {
         VerticalLayout {
             padding: 22px;
-            padding-top: 36px;
-            padding-bottom: 40px;
+            padding-top: root.safe-area-insets.top + 16px;
+            padding-bottom: root.safe-area-insets.bottom + 16px;
             spacing: 14px;
             HorizontalLayout {
                 Text { text: "Toaster Mic"; font-size: 30px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
@@ -136,6 +140,14 @@ export component AppWindow inherits Window {
                 Segment { text: "Mono"; selected: root.mode == 0; enabled: !root.running; clicked => { root.set-mode(0); } }
                 Segment { text: "Stereo"; selected: root.mode == 1; enabled: !root.running; clicked => { root.set-mode(1); } }
                 Segment { text: "Studio"; selected: root.mode == 2; enabled: !root.running; clicked => { root.set-mode(2); } }
+            }
+            if root.mode == 0 && root.can-choose-mic: Label { text: "Mikrofon"; }
+            if root.mode == 0 && root.can-choose-mic: HorizontalLayout {
+                spacing: 8px;
+                Segment { text: "Auto"; selected: root.mono-mic == 0; enabled: !root.running; clicked => { root.set-mono-mic(0); } }
+                Segment { text: "Unten"; selected: root.mono-mic == 1; enabled: !root.running; clicked => { root.set-mono-mic(1); } }
+                Segment { text: "Oben"; selected: root.mono-mic == 2; enabled: !root.running; clicked => { root.set-mono-mic(2); } }
+                if root.has-rear: Segment { text: "Hinten"; selected: root.mono-mic == 3; enabled: !root.running; clicked => { root.set-mono-mic(3); } }
             }
             if root.mode == 2: Label {
                 text: "Studio: alle Mikrofone gehen roh an den PC und werden dort zu einer lauten, klaren Stimme verrechnet.";
@@ -169,8 +181,8 @@ export component AppWindow inherits Window {
     if page == 1: ScrollView {
         VerticalLayout {
             padding: 22px;
-            padding-top: 36px;
-            padding-bottom: 40px;
+            padding-top: root.safe-area-insets.top + 16px;
+            padding-bottom: root.safe-area-insets.bottom + 16px;
             spacing: 10px;
             alignment: start;
             Text { text: "Einstellungen"; font-size: 26px; font-weight: 700; color: Theme.text; }
@@ -209,8 +221,8 @@ export component AppWindow inherits Window {
 
     if page == 2: VerticalLayout {
         padding: 24px;
-        padding-top: 48px;
-        padding-bottom: 40px;
+        padding-top: root.safe-area-insets.top + 24px;
+        padding-bottom: root.safe-area-insets.bottom + 16px;
         spacing: 16px;
         Text { text: "Mikrofone zuordnen"; font-size: 26px; font-weight: 700; color: Theme.text; }
         Text { text: root.cal-prompt; font-size: 19px; color: Theme.text; wrap: word-wrap; }
